@@ -1,14 +1,35 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tính Lương & Chấm Công</title>
+  <title>Chấm Công & Tính Lương — Tài Khoản</title>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
     body { max-width: 900px; margin: 0 auto; padding: 20px; background: #f5f7fa; }
     h1 { text-align: center; color: #2c3e50; margin-bottom: 25px; }
     .card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .hidden { display: none !important; }
+    .auth-box { max-width: 420px; margin: 60px auto; }
+    .auth-box h2 { text-align: center; margin-bottom: 20px; color: #2c3e50; }
+    .input-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; font-weight: 500; color: #34495e; }
+    input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem; }
+    .btn { padding: 10px 18px; border: none; border-radius: 6px; font-size: 0.95rem; cursor: pointer; margin-right: 10px; margin-top: 5px; }
+    .btn-primary { background: #3498db; color: white; width: 100%; }
+    .btn-success { background: #27ae60; color: white; }
+    .btn-danger { background: #e74c3c; color: white; }
+    .btn-secondary { background: #95a5a6; color: white; }
+    .btn:hover { opacity: 0.9; }
+    .toggle-auth { text-align: center; margin-top: 15px; font-size: 0.95rem; }
+    .toggle-auth a { color: #3498db; cursor: pointer; text-decoration: underline; }
+    .user-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .user-email { color: #27ae60; font-weight: 500; }
     .month-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     .month-nav button { padding: 8px 16px; border: none; background: #3498db; color: white; border-radius: 6px; cursor: pointer; }
     .month-nav button:hover { background: #2980b9; }
@@ -22,93 +43,209 @@
     .day.today { box-shadow: inset 0 0 0 2px #e74c3c; }
     .day-num { font-weight: bold; margin-bottom: 4px; }
     .day-hours { font-size: 0.8rem; opacity: 0.85; }
-    .input-group { margin-bottom: 15px; }
-    label { display: block; margin-bottom: 5px; font-weight: 500; color: #34495e; }
-    input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem; }
     .result { font-size: 1.1rem; line-height: 1.8; }
     .result strong { color: #27ae60; font-size: 1.2rem; }
-    .btn { padding: 10px 18px; border: none; border-radius: 6px; font-size: 0.95rem; cursor: pointer; margin-right: 10px; margin-top: 5px; }
-    .btn-primary { background: #3498db; color: white; }
-    .btn-danger { background: #e74c3c; color: white; }
-    .btn:hover { opacity: 0.9; }
     .note { margin-top: 15px; font-size: 0.85rem; color: #7f8c8d; }
+    .error { color: #e74c3c; margin-top: 10px; text-align: center; }
+    .success { color: #27ae60; margin-top: 10px; text-align: center; }
   </style>
 </head>
 <body>
-  <h1>📅 Chấm Công & Tính Lương</h1>
-
-  <div class="card">
-    <div class="month-nav">
-      <button id="prevMonth">◀ Tháng Trước</button>
-      <span class="month-title" id="monthTitle"></span>
-      <button id="nextMonth">Tháng Sau ▶</button>
+  <!-- Khu vực Đăng nhập/Đăng ký -->
+  <div id="authSection">
+    <div class="card auth-box" id="loginForm">
+      <h2>🔐 Đăng Nhập</h2
+      <div class="input-group">
+        <label>Email:</label>
+        <input type="email" id="loginEmail" placeholder="email@example.com" />
+      </div>
+      <div class="input-group">
+        <label>Mật khẩu:</label>
+        <input type="password" id="loginPassword" placeholder="Ít nhất 6 ký tự" />
+      </div>
+      <button class="btn btn-primary" id="btnLogin">Đăng Nhập</button>
+      <p class="toggle-auth">Chưa có tài khoản? <a id="goRegister">Đăng ký ngay</a></p>
+      <p class="error" id="authError"></p>
     </div>
-    <div class="calendar" id="calendar"></div>
-    <p class="note">💡 Nhấp ngày để đánh dấu làm việc; nhấp lại để bỏ. Nhập số giờ làm trong ô bên dưới.</p>
+
+    <div class="card auth-box hidden" id="registerForm">
+      <h2>📝 Tạo Tài Khoản</h2>
+      <div class="input-group">
+        <label>Email:</label>
+        <input type="email" id="regEmail" placeholder="email@example.com" />
+      </div>
+      <div class="input-group">
+        <label>Mật khẩu:</label>
+        <input type="password" id="regPassword" placeholder="Ít nhất 6 ký tự" />
+      </div>
+      <button class="btn btn-primary" id="btnRegister">Tạo Tài Khoản</button>
+      <p class="toggle-auth">Đã có tài khoản? <a id="goLogin">Đăng nhập</a></p>
+      <p class="error" id="regError"></p>
+    </div>
   </div>
 
-  <div class="card">
-    <h3>⚙ Thông số tính lương</h3>
-    <div class="input-group">
-      <label for="defaultHours">Số giờ làm trung bình mỗi ngày:</label>
-      <input type="number" id="defaultHours" step="0.5" min="0" max="24" value="8" />
+  <!-- Khu vực Công cụ — chỉ hiện sau khi đăng nhập -->
+  <div id="appSection" class="hidden">
+    <h1>📅 Chấm Công & Tính Lương</h1>
+    
+    <div class="card user-bar">
+      <span>👤 <span class="user-email" id="userEmail"></span></span>
+      <button class="btn btn-secondary" id="btnLogout">Đăng Xuất</button>
     </div>
-    <div class="input-group">
-      <label for="ratePerHour">Tiền lương mỗi giờ (VNĐ):</label>
-      <input type="number" id="ratePerHour" step="100" min="0" value="50000" />
-    </div>
-    <button class="btn btn-primary" id="applyHours">✅ Áp dụng giờ cho tất cả ngày đã chọn</button>
-    <button class="btn btn-danger" id="clearAll">🗑 Xóa toàn bộ dữ liệu tháng</button>
-  </div>
 
-  <div class="card result">
-    <h3>📊 Kết quả tính toán</h3>
-    <p>Tổng số ngày làm việc: <strong id="totalDays">0</strong> ngày</p>
-    <p>Tổng số giờ làm việc: <strong id="totalHours">0</strong> giờ</p>
-    <p>Tổng lương: <strong id="totalSalary">0</strong> VNĐ</p>
-    <p class="note">💾 Dữ liệu tự động lưu trên trình duyệt của bạn.</p>
+    <div class="card">
+      <div class="month-nav">
+        <button id="prevMonth">◀ Tháng Trước</button>
+        <span class="month-title" id="monthTitle"></span>
+        <button id="nextMonth">Tháng Sau ▶</button>
+      </div>
+      <div class="calendar" id="calendar"></div>
+      <p class="note">💡 Nhấp ngày để đánh dấu làm việc; nhấp lại để bỏ.</p>
+    </div>
+
+    <div class="card">
+      <h3>⚙ Thông số tính lương</h3>
+      <div class="input-group">
+        <label>Số giờ làm trung bình mỗi ngày:</label>
+        <input type="number" id="defaultHours" step="0.5" min="0" max="24" value="8" />
+      </div>
+      <div class="input-group">
+        <label>Tiền lương mỗi giờ (VNĐ):</label>
+        <input type="number" id="ratePerHour" step="100" min="0" value="50000" />
+      </div>
+      <button class="btn btn-success" id="applyHours">✅ Áp dụng giờ cho tất cả ngày đã chọn</button>
+      <button class="btn btn-danger" id="clearAll">🗑 Xóa dữ liệu tháng</button>
+      <p class="success" id="saveStatus"></p>
+    </div>
+
+    <div class="card result">
+      <h3>📊 Kết quả tính toán</h3>
+      <p>Tổng số ngày làm việc: <strong id="totalDays">0</strong> ngày</p>
+      <p>Tổng số giờ làm việc: <strong id="totalHours">0</strong> giờ</p>
+      <p>Tổng lương: <strong id="totalSalary">0</strong> VNĐ</p>
+      <p class="note">💾 Dữ liệu tự động lưu trên đám mây theo tài khoản của bạn.</p>
+    </div>
   </div>
 
   <script>
+    // ==================== CẤU HÌNH FIREBASE ĐÃ ĐIỀN SẴN ====================
+    const firebaseConfig = {
+      apiKey: "AIzaSyD03iZFQm8AvdmM-6CmzbEfzfj1fdnWq_I",
+      authDomain: "chamcong-9087e.firebaseapp.com",
+      projectId: "chamcong-9087e",
+      storageBucket: "chamcong-9087e.firebasestorage.app",
+      messagingSenderId: "210797649429",
+      appId: "1:210797649429:web:1c6df93f8178174492781c"
+    };
+    // =======================================================================
+
+    // Khởi tạo Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    let currentUser = null;
+    let currentDate = new Date();
+    let workData = {};
+
     const monthNames = [
       "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6",
       "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"
     ];
     const dayNames = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 
-    let currentDate = new Date();
-    let workData = {}; // { "2026-09-01": { hours: 8, worked: true }, ... }
-
-    // === Lưu & Đọc dữ liệu từ localStorage ===
-    function saveData() {
-      localStorage.setItem('workSalaryData', JSON.stringify(workData));
-    }
-    function loadData() {
-      const saved = localStorage.getItem('workSalaryData');
-      if (saved) workData = JSON.parse(saved);
+    // ==================== Kết nối dữ liệu theo tài khoản ====================
+    function getUserRef() {
+      return db.collection("users").doc(currentUser.uid);
     }
 
-    // === Lấy khóa tháng-năm ===
-    function getMonthKey(year, month) {
-      return `${year}-${String(month+1).padStart(2,'0')}`;
+    async function loadUserData() {
+      const doc = await getUserRef().get();
+      if (doc.exists) {
+        workData = doc.data().workData || {};
+        document.getElementById("defaultHours").value = doc.data().defaultHours || 8;
+        document.getElementById("ratePerHour").value = doc.data().ratePerHour || 50000;
+      } else {
+        workData = {};
+      }
+      renderCalendar();
     }
+
+    async function saveUserData() {
+      await getUserRef().set({
+        workData,
+        defaultHours: parseFloat(document.getElementById("defaultHours").value) || 8,
+        ratePerHour: parseFloat(document.getElementById("ratePerHour").value) || 0,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      
+      const status = document.getElementById("saveStatus");
+      status.textContent = "✅ Đã lưu!";
+      setTimeout(() => status.textContent = "", 1500);
+    }
+
+    // ==================== Xử lý Đăng nhập ====================
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        currentUser = user;
+        document.getElementById("authSection").classList.add("hidden");
+        document.getElementById("appSection").classList.remove("hidden");
+        document.getElementById("userEmail").textContent = user.email;
+        loadUserData();
+      } else {
+        currentUser = null;
+        document.getElementById("authSection").classList.remove("hidden");
+        document.getElementById("appSection").classList.add("hidden");
+      }
+    });
+
+    document.getElementById("btnLogin").addEventListener("click", async () => {
+      try {
+        await auth.signInWithEmailAndPassword(
+          document.getElementById("loginEmail").value,
+          document.getElementById("loginPassword").value
+        );
+      } catch (e) {
+        document.getElementById("authError").textContent = "❌ " + e.message;
+      }
+    });
+
+    document.getElementById("btnRegister").addEventListener("click", async () => {
+      try {
+        await auth.createUserWithEmailAndPassword(
+          document.getElementById("regEmail").value,
+          document.getElementById("regPassword").value
+        );
+      } catch (e) {
+        document.getElementById("regError").textContent = "❌ " + e.message;
+      }
+    });
+
+    document.getElementById("btnLogout").addEventListener("click", () => auth.signOut());
+    document.getElementById("goRegister").addEventListener("click", () => {
+      document.getElementById("loginForm").classList.add("hidden");
+      document.getElementById("registerForm").classList.remove("hidden");
+    });
+    document.getElementById("goLogin").addEventListener("click", () => {
+      document.getElementById("registerForm").classList.add("hidden");
+      document.getElementById("loginForm").classList.remove("hidden");
+    });
+
+    // ==================== Chấm công & Tính lương ====================
     function getDayKey(year, month, day) {
       return `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     }
 
-    // === Tạo lịch ===
     function renderCalendar() {
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth();
-      document.getElementById('monthTitle').textContent = `${monthNames[month]} ${year}`;
+      document.getElementById("monthTitle").textContent = `${monthNames[month]} ${year}`;
 
-      const container = document.getElementById('calendar');
-      container.innerHTML = '';
+      const container = document.getElementById("calendar");
+      container.innerHTML = "";
 
-      // Nhãn thứ
       dayNames.forEach(name => {
-        const label = document.createElement('div');
-        label.className = 'day-label';
+        const label = document.createElement("div");
+        label.className = "day-label";
         label.textContent = name;
         container.appendChild(label);
       });
@@ -117,59 +254,49 @@
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       const today = new Date();
 
-      // Ô trống đầu tháng
       for (let i = 0; i < firstDay; i++) {
-        const empty = document.createElement('div');
-        empty.style.visibility = 'hidden';
+        const empty = document.createElement("div");
+        empty.style.visibility = "hidden";
         container.appendChild(empty);
       }
 
-      // Các ngày
       for (let day = 1; day <= daysInMonth; day++) {
         const dayKey = getDayKey(year, month, day);
         const d = new Date(year, month, day);
-        const dayOfWeek = d.getDay();
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-        const isToday = today.getFullYear() === year && today.getMonth() === month && today === day;
-
+        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+        const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
         const data = workData[dayKey] || { worked: false, hours: 0 };
 
-        const dayEl = document.createElement('div');
-        dayEl.className = 'day';
-        if (isWeekend) dayEl.classList.add('weekend');
-        if (isToday) dayEl.classList.add('today');
-        if (data.worked) dayEl.classList.add('worked');
+        const dayEl = document.createElement("div");
+        dayEl.className = "day";
+        if (isWeekend) dayEl.classList.add("weekend");
+        if (isToday) dayEl.classList.add("today");
+        if (data.worked) dayEl.classList.add("worked");
 
         dayEl.innerHTML = `
           <div class="day-num">${day}</div>
           <div class="day-hours">${data.worked ? data.hours + 'h' : ''}</div>
         `;
-        dayEl.title = data.worked ? `Đã làm ${data.hours} giờ — Nhấp bỏ chọn` : 'Nhấp đánh dấu làm việc';
-
-        dayEl.addEventListener('click', () => toggleDay(dayKey, dayEl));
+        dayEl.addEventListener("click", () => toggleDay(dayKey, dayEl));
         container.appendChild(dayEl);
       }
 
       updateResult();
     }
 
-    // === Bật/Tắt chọn ngày ===
-    function toggleDay(dayKey, dayEl) {
-      const defaultHours = parseFloat(document.getElementById('defaultHours').value) || 8;
+    async function toggleDay(dayKey, dayEl) {
+      const defaultHours = parseFloat(document.getElementById("defaultHours").value) || 8;
       if (!workData[dayKey]?.worked) {
         workData[dayKey] = { worked: true, hours: defaultHours };
-        dayEl.classList.add('worked');
       } else {
         delete workData[dayKey];
-        dayEl.classList.remove('worked');
       }
-      saveData();
+      await saveUserData();
       renderCalendar();
     }
 
-    // === Cập nhật kết quả ===
     function updateResult() {
-      const rate = parseFloat(document.getElementById('ratePerHour').value) || 0;
+      const rate = parseFloat(document.getElementById("ratePerHour").value) || 0;
       let totalDays = 0, totalHours = 0;
 
       Object.values(workData).forEach(d => {
@@ -179,51 +306,47 @@
         }
       });
 
-      const totalSalary = totalHours * rate;
-      document.getElementById('totalDays').textContent = totalDays;
-      document.getElementById('totalHours').textContent = totalHours.toFixed(1);
-      document.getElementById('totalSalary').textContent = totalSalary.toLocaleString('vi-VN');
+      document.getElementById("totalDays").textContent = totalDays;
+      document.getElementById("totalHours").textContent = totalHours.toFixed(1);
+      document.getElementById("totalSalary").textContent = (totalHours * rate).toLocaleString("vi-VN");
     }
 
-    // === Áp dụng số giờ cho tất cả ngày đã chọn ===
-    function applyHoursToAll() {
-      const hours = parseFloat(document.getElementById('defaultHours').value) || 8;
-      Object.keys(workData).forEach(key => {
-        if (workData[key].worked) workData[key].hours = hours;
-      });
-      saveData();
-      renderCalendar();
-      alert(`✅ Đã áp dụng ${hours} giờ cho tất cả ngày đã chọn!`);
-    }
-
-    // === Xóa dữ liệu tháng hiện tại ===
-    function clearCurrentMonth() {
-      const year = currentDate.getFullYear();
-      const monthKey = getMonthKey(year, currentDate.getMonth());
-      Object.keys(workData).forEach(key => {
-        if (key.startsWith(monthKey + '-')) delete workData[key];
-      });
-      saveData();
-      renderCalendar();
-      alert('🗑 Đã xóa dữ liệu tháng!');
-    }
-
-    // === Khởi tạo ===
-    document.getElementById('prevMonth').addEventListener('click', () => {
+    document.getElementById("prevMonth").addEventListener("click", () => {
       currentDate.setMonth(currentDate.getMonth() - 1);
       renderCalendar();
     });
-    document.getElementById('nextMonth').addEventListener('click', () => {
+    document.getElementById("nextMonth").addEventListener("click", () => {
       currentDate.setMonth(currentDate.getMonth() + 1);
       renderCalendar();
     });
-    document.getElementById('applyHours').addEventListener('click', applyHoursToAll);
-    document.getElementById('clearAll').addEventListener('click', clearCurrentMonth);
-    document.getElementById('ratePerHour').addEventListener('input', updateResult);
-    document.getElementById('defaultHours').addEventListener('input', updateResult);
-
-    loadData();
-    renderCalendar();
+    document.getElementById("applyHours").addEventListener("click", async () => {
+      const hours = parseFloat(document.getElementById("defaultHours").value) || 8;
+      Object.keys(workData).forEach(key => {
+        if (workData[key].worked) workData[key].hours = hours;
+      });
+      await saveUserData();
+      renderCalendar();
+      alert(`✅ Đã áp dụng ${hours} giờ cho tất cả ngày đã chọn!`);
+    });
+    document.getElementById("clearAll").addEventListener("click", async () => {
+      if (confirm("Bạn có chắc xóa toàn bộ dữ liệu tháng?")) {
+        const prefix = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-`;
+        Object.keys(workData).forEach(key => {
+          if (key.startsWith(prefix)) delete workData[key];
+        });
+        await saveUserData();
+        renderCalendar();
+        alert("🗑 Đã xóa!");
+      }
+    });
+    document.getElementById("ratePerHour").addEventListener("input", () => {
+      updateResult();
+      saveUserData();
+    });
+    document.getElementById("defaultHours").addEventListener("input", () => {
+      updateResult();
+      saveUserData();
+    });
   </script>
 </body>
 </html>
